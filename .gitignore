@@ -1,0 +1,15 @@
+# Database
+data/
+*.db
+*.sqlite
+
+# AI Memory
+ai_memory.json
+ai_stats.json
+ml_model.joblib
+
+# Python
+__pycache__/
+*.pyc
+.env
+venv/
