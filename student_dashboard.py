@@ -352,26 +352,4 @@ def show_dashboard(user):
                     db.save_chat_message(user["id"], SUBJECT, "assistant", response)
     
      
-    # ========== NÚT CUỘN LÊN ĐẦU/XUỐNG CUỐI ==========
-st.markdown("---")
-col1, col2, col3 = st.columns([1, 1, 4])
-
-with col1:
-    # Nút cuộn lên đầu
-    if st.button("⬆️ Lên đầu", use_container_width=True):
-        st.markdown('<a href="#top" id="top-link"></a>', unsafe_allow_html=True)
-        st.markdown('<script>document.getElementById("top-link").click();</script>', unsafe_allow_html=True)
-        st.toast("📜 Đã lên đầu trang!", icon="⬆️")
-
-with col2:
-    # Nút cuộn xuống cuối
-    if st.button("⬇️ Xuống cuối", use_container_width=True):
-        st.markdown('<a href="#bottom" id="bottom-link"></a>', unsafe_allow_html=True)
-        st.markdown('<script>document.getElementById("bottom-link").click();</script>', unsafe_allow_html=True)
-        st.toast("📜 Đã xuống cuối trang!", icon="⬇️")
-
-# Anchor đầu trang
-st.markdown('<div id="top"></div>', unsafe_allow_html=True)
-
-# Anchor cuối trang (đặt cuối cùng)
-st.markdown('<div id="bottom"></div>', unsafe_allow_html=True)
+    
