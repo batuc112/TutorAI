@@ -23,7 +23,7 @@ class HybridTutor:
         if self.api_key:
             try:
                 genai.configure(api_key=self.api_key)
-                self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+                self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
                 self.gemini_available = True
                 print("✅ Gemini API đã sẵn sàng")
             except Exception as e:
