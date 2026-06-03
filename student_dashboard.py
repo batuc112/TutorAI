@@ -11,8 +11,36 @@ import os
 
 load_dotenv()
 
-# Subject cố định
 SUBJECT = "programming"
+
+# Custom CSS cho nút cuộn
+st.markdown("""
+<style>
+    .scroll-buttons {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .scroll-buttons button {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background-color: #4CAF50;
+        color: white;
+        font-size: 20px;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .scroll-buttons button:hover {
+        background-color: #45a049;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 
 def extract_topic_from_question(question):
@@ -59,21 +87,6 @@ def save_exercise_to_db(question_data, level):
     return exercise_id
 
 
-def generate_exam(student_level):
-    exams = db.get_exams(subject=SUBJECT, level=student_level)
-    if not exams:
-        return None, "📚 Chưa có đề thi nào."
-    selected = random.choice(exams)
-    return {
-        "exam_id": f"EXAM_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-        "title": selected["title"],
-        "questions": selected["questions"],
-        "total": len(selected["questions"]),
-        "time_limit": selected.get("time_limit", 30),
-        "answers": []
-    }, None
-
-
 def show_dashboard(user):
     if 'hybrid_tutor' not in st.session_state:
         st.session_state.hybrid_tutor = HybridTutor(api_key=os.getenv("GEMINI_API_KEY"))
@@ -82,20 +95,21 @@ def show_dashboard(user):
     student_level = profile["level"]
     gemini_available = st.session_state.hybrid_tutor.gemini_available
     
-    # Session state
     if "user_id" not in st.session_state:
         st.session_state.user_id = user["id"]
     
+    # Chat history
     chat_key = f"chat_messages_{SUBJECT}"
     if chat_key not in st.session_state:
-        history = db.get_chat_history(user["id"], SUBJECT, limit=50)
+        history = db.get_chat_history(user["id"], SUBJECT, limit=100)
         if history:
             st.session_state[chat_key] = history
         else:
-            welcome_msg = f"👋 Chào bạn {user['full_name']}! Trình độ hiện tại: **{student_level.upper()}**\n\n💬 Tôi là gia sư AI Lập trình. Bạn có thể:\n• **'Bài tập về biến'** - Nhận bài theo chủ đề\n• **'Bài tập'** - Nhận bài ngẫu nhiên\n• **'Làm đề'** - Thi thử\n• **'Hàm là gì?'** - Hỏi lý thuyết\n\nHãy bắt đầu nào! 🚀"
+            welcome_msg = f"👋 Chào bạn {user['full_name']}! Trình độ: **{student_level.upper()}**\n\n💻 **Gia sư Lập trình**\n\n• **'bài tập'** - Bài ngẫu nhiên\n• **'bài tập về biến'** - Bài theo chủ đề\n• **'làm đề'** - Thi thử\n• **'hàm là gì?'** - Hỏi lý thuyết"
             st.session_state[chat_key] = [{"role": "assistant", "content": welcome_msg}]
             db.save_chat_message(user["id"], SUBJECT, "assistant", welcome_msg)
     
+    # Exam state
     if "is_doing_exam" not in st.session_state:
         st.session_state.is_doing_exam = False
     if "current_exam" not in st.session_state:
@@ -104,20 +118,22 @@ def show_dashboard(user):
         st.session_state.exam_current_index = 0
     if "exam_start_time" not in st.session_state:
         st.session_state.exam_start_time = None
-    if "show_explanation" not in st.session_state:
-        st.session_state.show_explanation = False
-    if "last_answer_result" not in st.session_state:
-        st.session_state.last_answer_result = None
     
-    # Nút xóa lịch sử chat (nhỏ gọn)
-    col_clear, col_spacer = st.columns([1, 10])
-    with col_clear:
-        if st.button("🗑️ Xóa lịch sử", key="clear_history", help="Xóa toàn bộ lịch sử chat"):
+    # Practice state
+    if "waiting_for_answer" not in st.session_state:
+        st.session_state.waiting_for_answer = False
+    if "current_question" not in st.session_state:
+        st.session_state.current_question = None
+    
+    # Nút xóa lịch sử
+    col1, col2 = st.columns([6, 1])
+    with col2:
+        if st.button("🗑️ Xóa lịch sử", key="clear_history"):
             db.clear_chat_history(user["id"], SUBJECT)
             st.session_state[chat_key] = []
             st.rerun()
     
-    # Làm đề thi
+    # ========== LÀM ĐỀ THI ==========
     if st.session_state.is_doing_exam and st.session_state.current_exam:
         exam = st.session_state.current_exam
         questions = exam["questions"]
@@ -133,13 +149,13 @@ def show_dashboard(user):
         minutes = int(remaining // 60)
         seconds = int(remaining % 60)
         
-        col1, col2 = st.columns([1, 3])
-        with col1:
+        c1, c2 = st.columns([1, 3])
+        with c1:
             if remaining <= 0:
                 st.error("⏰ HẾT GIỜ!")
             else:
                 st.info(f"⏰ {minutes}:{seconds:02d}")
-        with col2:
+        with c2:
             st.progress(current / total, text=f"Câu {current + 1}/{total}")
         
         st.subheader(f"📝 {exam['title']}")
@@ -148,17 +164,17 @@ def show_dashboard(user):
         
         answer = None
         if q["type"] == "multiple_choice" and q.get("options"):
-            answer = st.radio("Chọn đáp án:", q["options"], key=f"q_{current}")
+            answer = st.radio("Chọn đáp án:", q["options"], key=f"exam_q_{current}")
             answer = answer[0] if answer else None
         elif q["type"] == "true_false":
-            answer = st.radio("Chọn đáp án:", ["A. Đúng", "B. Sai"], key=f"q_{current}")
+            answer = st.radio("Chọn đáp án:", ["A. Đúng", "B. Sai"], key=f"exam_q_{current}")
             answer = answer[0] if answer else None
         else:
-            answer = st.text_input("Câu trả lời:", key=f"q_{current}")
+            answer = st.text_input("Câu trả lời:", key=f"exam_q_{current}")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("⏩ Nộp câu", key="submit_btn", use_container_width=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("⏩ Nộp câu", key="submit_exam"):
                 if answer:
                     is_correct = answer.upper() == q["answer"].upper() if q["type"] != "essay" else True
                     score = 100 if is_correct else 0
@@ -179,12 +195,11 @@ def show_dashboard(user):
                         st.session_state.current_exam = None
                         st.session_state.exam_current_index = 0
                         st.session_state.exam_start_time = None
-                        if st.button("🏠 Về trang chính"):
-                            st.rerun()
+                        st.rerun()
                 else:
                     st.warning("Vui lòng chọn/nhập câu trả lời!")
-        with col2:
-            if st.button("❌ Hủy", key="cancel_exam", use_container_width=True):
+        with c2:
+            if st.button("❌ Hủy", key="cancel_exam"):
                 st.session_state.is_doing_exam = False
                 st.session_state.current_exam = None
                 st.session_state.exam_current_index = 0
@@ -192,18 +207,69 @@ def show_dashboard(user):
                 st.rerun()
         return
     
-    # Hiển thị chat history
+    # ========== HIỂN THỊ CHAT ==========
     for msg in st.session_state[chat_key]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
     
-    if st.session_state.get("show_explanation") and st.session_state.get("last_answer_result"):
+    # ========== XỬ LÝ BÀI TẬP ĐANG CHỜ TRẢ LỜI ==========
+    if st.session_state.waiting_for_answer and st.session_state.current_question:
         with st.chat_message("assistant"):
-            st.markdown(st.session_state.last_answer_result)
-        st.session_state.show_explanation = False
+            st.markdown(f"**📝 {st.session_state.current_question['question']}**")
+            if st.session_state.current_question.get("options"):
+                for opt in st.session_state.current_question["options"]:
+                    st.markdown(f"  {opt}")
+        
+        with st.form(key="answer_form"):
+            answer_input = None
+            if st.session_state.current_question.get("type") == "multiple_choice" and st.session_state.current_question.get("options"):
+                answer_input = st.radio("Chọn đáp án:", st.session_state.current_question["options"])
+                answer_input = answer_input[0] if answer_input else None
+            elif st.session_state.current_question.get("type") == "true_false":
+                answer_input = st.radio("Chọn đáp án:", ["A. Đúng", "B. Sai"])
+                answer_input = answer_input[0] if answer_input else None
+            else:
+                answer_input = st.text_input("Câu trả lời:")
+            
+            submitted = st.form_submit_button("✅ Nộp bài")
+            
+            if submitted:
+                if answer_input:
+                    ex = st.session_state.current_question
+                    is_correct = answer_input.upper() == ex["answer"].upper() if ex["type"] not in ["essay", "fill_blank"] else answer_input.strip().lower() == ex["answer"].lower()
+                    score = 100 if is_correct else 0
+                    
+                    if gemini_available:
+                        with st.spinner("🤖 Đang phân tích câu trả lời..."):
+                            explanation = st.session_state.hybrid_tutor.call_gemini(
+                                f"Học sinh trả lời câu hỏi: {ex['question']}\nĐáp án học sinh: {answer_input}\nĐáp án đúng: {ex['answer']}\nHãy giải thích ngắn gọn, tối đa 2 câu, bằng tiếng Việt."
+                            )
+                            if not explanation:
+                                explanation = f"✅ Đúng!" if is_correct else f"❌ Sai. Đáp án đúng là: {ex['answer']}"
+                    else:
+                        explanation = f"✅ Đúng!" if is_correct else f"❌ Sai. Đáp án đúng là: {ex['answer']}"
+                    
+                    db.add_practice_result(user["id"], ex["exercise_id"], score, answer_input, explanation)
+                    db.mark_exercise_done(user["id"], ex["exercise_id"], is_exam=0)
+                    
+                    result_msg = f"**📝 Câu hỏi:** {ex['question']}\n\n"
+                    result_msg += f"**💬 Câu trả lời của bạn:** {answer_input}\n\n"
+                    result_msg += f"**📊 Kết quả:** {'✅ Chính xác!' if is_correct else '❌ Chưa đúng'}\n\n"
+                    result_msg += f"**📖 Giải thích:** {explanation}"
+                    
+                    st.session_state[chat_key].append({"role": "assistant", "content": result_msg})
+                    db.save_chat_message(user["id"], SUBJECT, "assistant", result_msg)
+                    
+                    st.session_state.waiting_for_answer = False
+                    st.session_state.current_question = None
+                    st.rerun()
+                else:
+                    st.warning("Vui lòng nhập câu trả lời!")
+        return
     
-    # Xử lý nhập liệu
+    # ========== NHẬP TIN NHẮN ==========
     if prompt := st.chat_input("Nhập yêu cầu..."):
+        # Lưu tin nhắn user
         db.save_chat_message(user["id"], SUBJECT, "user", prompt)
         st.session_state[chat_key].append({"role": "user", "content": prompt})
         
@@ -214,12 +280,12 @@ def show_dashboard(user):
             msg_lower = prompt.lower()
             response = None
             
-            if "bài tập" in msg_lower or "bài mới" in msg_lower:
+            # ===== BÀI TẬP =====
+            if "bài tập" in msg_lower:
                 topic = extract_topic_from_question(prompt)
                 
                 if topic:
-                    with st.chat_message("assistant"):
-                        st.info(f"🔍 Đang tìm bài tập về **{topic}**...")
+                    st.info(f"🔍 Đang tìm bài tập về **{topic}**...")
                     exercises = db.get_exercises_by_topic(
                         topic=topic,
                         subject=SUBJECT,
@@ -235,142 +301,77 @@ def show_dashboard(user):
                 
                 if exercises:
                     ex = random.choice(exercises)
-                    st.session_state.current_exercise = ex
-                    
+                    st.session_state.waiting_for_answer = True
+                    st.session_state.current_question = ex
                     st.markdown(f"**📝 {ex['question']}**")
-                    
-                    with st.form(key=f"practice_form_{ex['exercise_id']}"):
-                        answer_input = None
-                        
-                        if ex["type"] == "multiple_choice" and ex.get("options"):
-                            answer_input = st.radio("Chọn đáp án:", ex["options"])
-                            answer_input = answer_input[0] if answer_input else None
-                        elif ex["type"] == "true_false":
-                            answer_input = st.radio("Chọn đáp án:", ["A. Đúng", "B. Sai"])
-                            answer_input = answer_input[0] if answer_input else None
-                        elif ex["type"] == "fill_blank":
-                            answer_input = st.text_input("Điền câu trả lời vào ô trống:")
-                        else:
-                            answer_input = st.text_area("Câu trả lời:")
-                        
-                        submitted = st.form_submit_button("✅ Nộp bài")
-                        
-                        if submitted:
-                            if answer_input:
-                                is_correct = answer_input.upper() == ex["answer"].upper() if ex["type"] not in ["essay", "fill_blank"] else answer_input.strip().lower() == ex["answer"].lower()
-                                score = 100 if is_correct else 0
-                                
-                                if gemini_available:
-                                    with st.spinner("🤖 Đang phân tích câu trả lời..."):
-                                        explanation = st.session_state.hybrid_tutor.explain_answer_with_gemini(
-                                            ex["question"], answer_input, ex["answer"], topic if topic else "chủ đề này"
-                                        )
-                                else:
-                                    explanation = f"✅ Đáp án đúng là: {ex['answer']}" if is_correct else f"❌ Đáp án đúng là: {ex['answer']}"
-                                
-                                db.add_practice_result(user["id"], ex["exercise_id"], score, answer_input, explanation)
-                                db.mark_exercise_done(user["id"], ex["exercise_id"], is_exam=0)
-                                
-                                if is_correct:
-                                    st.success("🎉 Chính xác!")
-                                else:
-                                    st.error(f"❌ Chưa đúng. Đáp án đúng là: {ex['answer']}")
-                                
-                                with st.expander("📖 Xem giải thích chi tiết"):
-                                    st.markdown(explanation)
-                                
-                                st.rerun()
-                            else:
-                                st.warning("Vui lòng chọn/nhập câu trả lời!")
-                
-                elif gemini_available:
-                    with st.spinner(f"🤖 Đang tạo bài tập mới về '{topic if topic else 'chủ đề này'}'..."):
-                        new_exercise = st.session_state.hybrid_tutor.generate_exercise_with_gemini(
-                            topic if topic else "Python", 
-                            student_level
-                        )
-                        
-                        if new_exercise:
-                            exercise_id = save_exercise_to_db(new_exercise, student_level)
-                            new_exercise["exercise_id"] = exercise_id
-                            st.session_state.current_exercise = new_exercise
-                            
-                            st.markdown(f"**✨ Bài tập mới (do AI tạo, đã lưu):**\n\n{new_exercise['question']}")
-                            
-                            with st.form(key=f"practice_form_new_{exercise_id}"):
-                                answer_input = None
-                                
-                                if new_exercise.get("type") == "multiple_choice" and new_exercise.get("options"):
-                                    answer_input = st.radio("Chọn đáp án:", new_exercise["options"])
-                                    answer_input = answer_input[0] if answer_input else None
-                                elif new_exercise.get("type") == "true_false":
-                                    answer_input = st.radio("Chọn đáp án:", ["A. Đúng", "B. Sai"])
-                                    answer_input = answer_input[0] if answer_input else None
-                                else:
-                                    answer_input = st.text_input("Câu trả lời:")
-                                
-                                submitted = st.form_submit_button("✅ Nộp bài")
-                                
-                                if submitted:
-                                    if answer_input:
-                                        is_correct = answer_input.upper() == new_exercise["answer"].upper() if new_exercise.get("type") not in ["essay", "fill_blank"] else answer_input.strip().lower() == new_exercise["answer"].lower()
-                                        score = 100 if is_correct else 0
-                                        
-                                        with st.spinner("🤖 Đang phân tích câu trả lời..."):
-                                            explanation = st.session_state.hybrid_tutor.explain_answer_with_gemini(
-                                                new_exercise["question"], answer_input, new_exercise["answer"], topic if topic else "Python"
-                                            )
-                                        
-                                        db.add_practice_result(user["id"], exercise_id, score, answer_input, explanation)
-                                        db.mark_exercise_done(user["id"], exercise_id, is_exam=0)
-                                        
-                                        if is_correct:
-                                            st.success("🎉 Chính xác!")
-                                        else:
-                                            st.error(f"❌ Chưa đúng. Đáp án đúng là: {new_exercise['answer']}")
-                                        
-                                        with st.expander("📖 Xem giải thích chi tiết"):
-                                            st.markdown(explanation)
-                                        
-                                        st.rerun()
-                                    else:
-                                        st.warning("Vui lòng chọn/nhập câu trả lời!")
-                            
-                            st.caption("💡 *Bài tập này đã được lưu vào database để dùng cho lần sau!*")
-                        else:
-                            st.markdown("⚠️ Không thể tạo bài tập mới. Vui lòng thử lại sau!")
-                else:
-                    if topic:
-                        st.warning(f"📚 Chưa có bài tập về '{topic}' và chưa kết nối Gemini để tạo mới.")
-                    else:
-                        st.warning("📚 Chưa có bài tập nào trong kho!")
-                    
-                    if st.button("🔄 Làm lại bài tập cũ"):
-                        db.reset_exercise_history(user["id"])
-                        st.rerun()
-            
-            elif "làm đề" in msg_lower or "đề thi" in msg_lower:
-                exam, error = generate_exam(student_level)
-                if exam:
-                    st.session_state.is_doing_exam = True
-                    st.session_state.current_exam = exam
-                    st.session_state.exam_current_index = 0
-                    st.session_state.exam_start_time = None
-                    st.markdown(f"📝 **{exam['title']}**\n✨ Gồm {exam['total']} câu\n⏰ Thời gian: {exam['time_limit']} phút\n\n👉 Trả lời từng câu bên dưới!")
+                    if ex.get("options"):
+                        for opt in ex["options"]:
+                            st.markdown(f"  {opt}")
                     st.rerun()
                 else:
-                    st.markdown(error)
+                    error_msg = "📚 **Chưa có bài tập nào trong kho!**\n\n🔧 **Hướng dẫn:**\n- Yêu cầu giáo viên thêm bài tập\n- Hoặc kết nối Gemini API để tự động sinh bài tập"
+                    st.markdown(error_msg)
+                    st.session_state[chat_key].append({"role": "assistant", "content": error_msg})
+                    db.save_chat_message(user["id"], SUBJECT, "assistant", error_msg)
             
+            # ===== LÀM ĐỀ =====
+            elif "làm đề" in msg_lower or "đề thi" in msg_lower or "thi thử" in msg_lower:
+                exams = db.get_exams(subject=SUBJECT, level=student_level)
+                
+                if exams:
+                    exam = random.choice(exams)
+                    st.session_state.is_doing_exam = True
+                    st.session_state.current_exam = {
+                        "exam_id": f"EXAM_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                        "title": exam["title"],
+                        "questions": exam["questions"],
+                        "total": len(exam["questions"]),
+                        "time_limit": exam.get("time_limit", 30),
+                        "answers": []
+                    }
+                    st.session_state.exam_current_index = 0
+                    st.session_state.exam_start_time = None
+                    response = f"📝 **{exam['title']}**\n✨ Gồm {len(exam['questions'])} câu\n⏰ Thời gian: {exam.get('time_limit', 30)} phút\n\n👉 Trả lời từng câu bên dưới!"
+                    st.markdown(response)
+                    st.session_state[chat_key].append({"role": "assistant", "content": response})
+                    db.save_chat_message(user["id"], SUBJECT, "assistant", response)
+                    st.rerun()
+                else:
+                    error_msg = "📚 **Chưa có đề thi nào trong hệ thống!**\n\n🔧 **Hướng dẫn:**\n- Yêu cầu giáo viên tạo đề thi\n- Giáo viên vào tab '📝 Đề thi' → 'Tạo đề mới'"
+                    st.markdown(error_msg)
+                    st.session_state[chat_key].append({"role": "assistant", "content": error_msg})
+                    db.save_chat_message(user["id"], SUBJECT, "assistant", error_msg)
+            
+            # ===== HỎI LÝ THUYẾT =====
             else:
                 with st.spinner("🤔 Đang suy nghĩ..."):
                     result = st.session_state.hybrid_tutor.answer(prompt, subject=SUBJECT)
                     response = result["answer"]
                     st.markdown(response)
-        
-        if response:
-            db.save_chat_message(user["id"], SUBJECT, "assistant", response)
-            st.session_state[chat_key].append({"role": "assistant", "content": response})
-        else:
-            db.save_chat_message(user["id"], SUBJECT, "assistant", st.session_state[chat_key][-1]["content"])
-        
-        st.rerun()
+                    st.session_state[chat_key].append({"role": "assistant", "content": response})
+                    db.save_chat_message(user["id"], SUBJECT, "assistant", response)
+    
+     
+    # ========== NÚT CUỘN LÊN ĐẦU/XUỐNG CUỐI ==========
+st.markdown("---")
+col1, col2, col3 = st.columns([1, 1, 4])
+
+with col1:
+    # Nút cuộn lên đầu
+    if st.button("⬆️ Lên đầu", use_container_width=True):
+        st.markdown('<a href="#top" id="top-link"></a>', unsafe_allow_html=True)
+        st.markdown('<script>document.getElementById("top-link").click();</script>', unsafe_allow_html=True)
+        st.toast("📜 Đã lên đầu trang!", icon="⬆️")
+
+with col2:
+    # Nút cuộn xuống cuối
+    if st.button("⬇️ Xuống cuối", use_container_width=True):
+        st.markdown('<a href="#bottom" id="bottom-link"></a>', unsafe_allow_html=True)
+        st.markdown('<script>document.getElementById("bottom-link").click();</script>', unsafe_allow_html=True)
+        st.toast("📜 Đã xuống cuối trang!", icon="⬇️")
+
+# Anchor đầu trang
+st.markdown('<div id="top"></div>', unsafe_allow_html=True)
+
+# Anchor cuối trang (đặt cuối cùng)
+st.markdown('<div id="bottom"></div>', unsafe_allow_html=True)

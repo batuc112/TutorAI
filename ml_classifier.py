@@ -14,25 +14,13 @@ class MLQuestionClassifier:
     def get_training_data(self):
         return db.get_all_training_data()
     
-    def get_default_data(self):
-        return [
-            ("biến trong python là gì", "definition"),
-            ("thế nào là hàm", "definition"),
-            ("khái niệm vòng lặp", "definition"),
-            ("cho tôi ví dụ về biến", "example"),
-            ("lấy ví dụ về hàm", "example"),
-            ("cách khai báo biến", "how_to"),
-            ("làm thế nào để tạo hàm", "how_to"),
-            ("cho tôi bài tập về biến", "exercise"),
-            ("gửi bài tập hàm", "exercise"),
-        ]
-    
     def train(self):
         print("🤖 Đang huấn luyện AI học máy...")
         data = self.get_training_data()
         
         if not data:
-            data = self.get_default_data()
+            print("⚠️ Chưa có dữ liệu huấn luyện!")
+            return
         
         questions = [item[0] for item in data]
         labels = [item[1] for item in data]
@@ -47,6 +35,7 @@ class MLQuestionClassifier:
         
         accuracy = self.pipeline.score(questions, labels)
         print(f"✅ Huấn luyện thành công! Độ chính xác: {accuracy:.2%}")
+        print(f"📊 Đã học {len(data)} câu hỏi mẫu")
     
     def load_or_train(self):
         if os.path.exists(self.model_path):
@@ -72,4 +61,5 @@ class MLQuestionClassifier:
         db.add_training_data(question, category)
         all_data = self.get_training_data()
         if len(all_data) % 10 == 0:
+            print("📚 Có dữ liệu mới, đang cập nhật AI...")
             self.train()
