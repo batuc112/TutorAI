@@ -13,36 +13,6 @@ load_dotenv()
 
 SUBJECT = "programming"
 
-# Custom CSS cho nút cuộn
-st.markdown("""
-<style>
-    .scroll-buttons {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 999;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    .scroll-buttons button {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        background-color: #4CAF50;
-        color: white;
-        font-size: 20px;
-        border: none;
-        cursor: pointer;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-    .scroll-buttons button:hover {
-        background-color: #45a049;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-
 def extract_topic_from_question(question):
     question_lower = question.lower()
     patterns = [
@@ -67,27 +37,114 @@ def extract_topic_from_question(question):
     return None
 
 
-def save_exercise_to_db(question_data, level):
+def save_exercise_to_db(question_data, level, topic_name=None):
+    """Lưu bài tập vào database - ĐẢM BẢO ĐỊNH DẠNG ĐÚNG"""
+    
     exercise_id = f"GEN{random.randint(10000, 99999)}"
+    tags = [SUBJECT]
+    if topic_name:
+        tags.append(topic_name)
+        db.get_or_create_topic(topic_name, SUBJECT)
+    
+    # ===== LẤY VÀ XỬ LÝ CÂU HỎI =====
+    question = question_data.get("question", "")
+    if isinstance(question, list):
+        question = ''.join(question)
+    elif not isinstance(question, str):
+        question = str(question)
+    
+    # ===== LẤY VÀ XỬ LÝ OPTIONS =====
+    options = question_data.get("options", [])
+    
+    # Nếu options là chuỗi, thử parse JSON
+    if isinstance(options, str):
+        try:
+            options = json.loads(options)
+        except:
+            options = []
+    
+    # Nếu options là list, xử lý từng phần tử
+    clean_options = []
+    if isinstance(options, list):
+        for opt in options:
+            if isinstance(opt, list):
+                # Ghép mảng ký tự thành chuỗi
+                clean_options.append(''.join(opt))
+            elif isinstance(opt, str):
+                clean_options.append(opt)
+            else:
+                clean_options.append(str(opt))
+    
+    # Đảm bảo có đúng 4 options
+    if len(clean_options) != 4:
+        clean_options = [
+            "A. Đáp án A",
+            "B. Đáp án B",
+            "C. Đáp án C",
+            "D. Đáp án D"
+        ]
+    
+    # Đảm bảo mỗi option bắt đầu đúng prefix
+    for i, opt in enumerate(clean_options):
+        prefix = ["A. ", "B. ", "C. ", "D. "][i]
+        # Nếu chưa có prefix, thêm vào
+        if not opt.startswith(prefix[:2]):
+            # Bỏ prefix cũ nếu có
+            opt = re.sub(r'^[A-D]\.\s*', '', opt)
+            clean_options[i] = prefix + opt
+    
+    # ===== LẤY ĐÁP ÁN =====
+    answer = question_data.get("answer", "A")
+    if isinstance(answer, list):
+        answer = ''.join(answer)
+    else:
+        answer = str(answer).upper().strip()
+    # Chỉ lấy chữ cái đầu
+    if len(answer) > 1:
+        answer = answer[0]
+    if answer not in ["A", "B", "C", "D"]:
+        answer = "A"
+    
+    # ===== LẤY GIẢI THÍCH =====
+    explanation = question_data.get("explanation", "")
+    if isinstance(explanation, list):
+        explanation = ''.join(explanation)
+    elif not isinstance(explanation, str):
+        explanation = str(explanation)
+    
+    # ===== TẠO DỮ LIỆU JSON ĐỂ LƯU =====
+    # Dùng json.dumps với ensure_ascii=False để giữ tiếng Việt
+    options_json = json.dumps(clean_options, ensure_ascii=False)
+    tags_json = json.dumps(tags, ensure_ascii=False)
+    
     exercise_data = {
         "exercise_id": exercise_id,
-        "question": question_data["question"],
-        "type": question_data.get("type", "essay"),
-        "options": json.dumps(question_data.get("options", [])),
-        "answer": question_data["answer"],
+        "question": question,
+        "type": "multiple_choice",
+        "options": options_json,  # Đã là JSON string
+        "answer": answer,
         "subject": SUBJECT,
         "level": level,
-        "tags": json.dumps([SUBJECT]),
+        "tags": tags_json,
         "teacher_id": 1,
         "auto_generated": 1,
-        "correct_explanation": question_data.get("explanation", ""),
+        "correct_explanation": explanation,
         "created_at": datetime.now().isoformat()
     }
+    
+    # Debug: in ra để kiểm tra
+    print(f"📝 Lưu bài tập:")
+    print(f"   ID: {exercise_id}")
+    print(f"   Question: {question[:50]}...")
+    print(f"   Options: {clean_options}")
+    print(f"   Answer: {answer}")
+    
     db.add_exercise(exercise_data)
     return exercise_id
 
 
 def show_dashboard(user):
+    # Khởi tạo hybrid_tutor
     if 'hybrid_tutor' not in st.session_state:
         st.session_state.hybrid_tutor = HybridTutor(api_key=os.getenv("GEMINI_API_KEY"))
     
@@ -283,9 +340,12 @@ def show_dashboard(user):
             # ===== BÀI TẬP =====
             if "bài tập" in msg_lower:
                 topic = extract_topic_from_question(prompt)
+                gemini_working = st.session_state.hybrid_tutor.gemini_available
                 
+                # 1. TÌM BÀI TẬP TRONG DATABASE TRƯỚC
                 if topic:
-                    st.info(f"🔍 Đang tìm bài tập về **{topic}**...")
+                    st.info(f"🔍 Đang tìm bài tập về **{topic}** trong kho...")
+                    # Lấy bài tập theo chủ đề, chưa làm
                     exercises = db.get_exercises_by_topic(
                         topic=topic,
                         subject=SUBJECT,
@@ -300,20 +360,50 @@ def show_dashboard(user):
                     )
                 
                 if exercises:
+                    # CÓ BÀI TẬP TRONG DATABASE -> LẤY RA DÙNG
                     ex = random.choice(exercises)
                     st.session_state.waiting_for_answer = True
                     st.session_state.current_question = ex
-                    st.markdown(f"**📝 {ex['question']}**")
+                    st.markdown(f"**📝 Bài tập từ kho (đã lưu):**\n\n{ex['question']}")
                     if ex.get("options"):
                         for opt in ex["options"]:
                             st.markdown(f"  {opt}")
                     st.rerun()
+                
+                elif gemini_working:
+                    # KHÔNG CÒN BÀI TẬP TRONG DATABASE -> GỌI GEMINI TẠO MỚI
+                    with st.spinner(f"🤖 Đã làm hết bài về '{topic if topic else 'chủ đề này'}', Gemini đang tạo bài tập mới..."):
+                        new_ex = st.session_state.hybrid_tutor.generate_exercise_with_gemini(
+                            topic if topic else "Python", 
+                            student_level
+                        )
+                        
+                        if new_ex and new_ex.get("question"):
+                            # Lưu bài tập mới vào database
+                            exercise_id = save_exercise_to_db(new_ex, student_level, topic)
+                            new_ex["exercise_id"] = exercise_id
+                            st.session_state.waiting_for_answer = True
+                            st.session_state.current_question = new_ex
+                            
+                            st.markdown(f"**✨ Bài tập mới (Gemini tạo - đã lưu vào kho):**\n\n{new_ex['question']}")
+                            if new_ex.get("options"):
+                                for opt in new_ex["options"]:
+                                    st.markdown(f"  {opt}")
+                            st.markdown("---")
+                            st.info("💡 Bài tập này sẽ được dùng cho lần sau!")
+                            st.rerun()
+                        else:
+                            st.error("❌ **Không thể tạo bài tập mới!** Vui lòng thử lại sau.")
                 else:
-                    error_msg = "📚 **Chưa có bài tập nào trong kho!**\n\n🔧 **Hướng dẫn:**\n- Yêu cầu giáo viên thêm bài tập\n- Hoặc kết nối Gemini API để tự động sinh bài tập"
-                    st.markdown(error_msg)
-                    st.session_state[chat_key].append({"role": "assistant", "content": error_msg})
-                    db.save_chat_message(user["id"], SUBJECT, "assistant", error_msg)
-            
+                    # KHÔNG CÓ BÀI TẬP VÀ KHÔNG CÓ GEMINI
+                    if topic:
+                        st.warning(f"📚 **Chưa có bài tập nào về '{topic}' trong kho!**")
+                    else:
+                        st.warning("📚 **Chưa có bài tập nào trong kho!**")
+                    
+                    if st.button("🔄 Làm lại bài tập cũ"):
+                        db.reset_exercise_history(user["id"])
+                        st.rerun()
             # ===== LÀM ĐỀ =====
             elif "làm đề" in msg_lower or "đề thi" in msg_lower or "thi thử" in msg_lower:
                 exams = db.get_exams(subject=SUBJECT, level=student_level)
@@ -350,6 +440,7 @@ def show_dashboard(user):
                     st.markdown(response)
                     st.session_state[chat_key].append({"role": "assistant", "content": response})
                     db.save_chat_message(user["id"], SUBJECT, "assistant", response)
-    
-     
-    
+        
+        # Lưu phản hồi AI (nếu chưa được lưu)
+        if response and not st.session_state.get("waiting_for_answer", False) and not st.session_state.get("is_doing_exam", False):
+            db.save_chat_message(user["id"], SUBJECT, "assistant", response)

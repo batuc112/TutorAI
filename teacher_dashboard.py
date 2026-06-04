@@ -9,39 +9,43 @@ load_dotenv()
 
 SUBJECT = "programming"
 
+# Tag mặc định
+DEFAULT_TAGS = ["biến", "hàm", "vòng lặp", "list", "tuple", "dictionary", "set", "class", "đệ quy", "file", 
+                "exception", "module", "decorator", "generator", "OOP", "cơ bản", "nâng cao"]
+
 def show_dashboard(user):
     st.title(f"👨‍🏫 Trang quản lý - {user['full_name']}")
     
-    # Thêm tab mới cho Đúng/Sai
-    tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "📚 Bài giảng", 
-        "✅ Trắc nghiệm", 
-        "✓/✗ Đúng/Sai", 
-        "📝 Tự luận", 
-        "📊 Xem tất cả", 
-        "📝 Đề thi", 
-        "🧠 AI Học tập", 
-        "🏷️ Tag/Chủ đề"
-    ])
+    # Đảm bảo tag mặc định có trong database
+    for tag in DEFAULT_TAGS:
+        db.add_topic(tag, SUBJECT, user["id"])
     
-    # ========== LẤY DANH SÁCH TAG ==========
+    # Lấy danh sách tag
     all_tags = db.get_all_topics(SUBJECT)
     
-    # ========== TAB 0: BÀI GIẢNG (LÝ THUYẾT) ==========
+    # Tạo các tab
+    tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "📚 Bài giảng",
+        "✅ Trắc nghiệm",
+        "✓/✗ Đúng/Sai",
+        "📝 Tự luận",
+        "📝 Đề thi",
+        "📖 Xem bài giảng",
+        "📝 Xem bài tập",
+        "📄 Xem đề thi",
+        "🏷️ Quản lý Tag"
+    ])
+    
+    # ========== TAB 0: BÀI GIẢNG (THÊM MỚI) ==========
     with tab0:
-        st.subheader(f"📚 Thêm bài giảng (Lý thuyết)")
+        st.subheader("📚 Thêm bài giảng (Lý thuyết)")
+        
         col1, col2 = st.columns(2)
         with col1:
             lesson_level = st.selectbox("Trình độ", ["beginner", "intermediate", "advanced"], key="ls_lvl")
             lesson_title = st.text_input("Tiêu đề bài học", key="ls_title")
         with col2:
-            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="ls_tags_select")
-            new_tag = st.text_input("Hoặc thêm tag mới (cách nhau bằng dấu phẩy)", key="ls_new_tag")
-            if new_tag:
-                new_tags = [t.strip() for t in new_tag.split(',') if t.strip()]
-                for tag in new_tags:
-                    db.add_topic(tag, SUBJECT, user["id"])
-                selected_tags.extend(new_tags)
+            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="ls_tags")
         
         lesson_theory = st.text_area("📖 Lý thuyết", height=200, key="ls_theory")
         lesson_examples = st.text_area("💡 Ví dụ (mỗi dòng 1 ví dụ)", height=100, key="ls_ex")
@@ -65,20 +69,15 @@ def show_dashboard(user):
                 st.success(f"✅ Đã thêm bài giảng: {lesson_title}")
                 st.balloons()
     
-    # ========== TAB 1: TRẮC NGHIỆM (A, B, C, D) ==========
+    # ========== TAB 1: TRẮC NGHIỆM (THÊM MỚI) ==========
     with tab1:
-        st.subheader(f"✅ Thêm câu hỏi trắc nghiệm (4 lựa chọn)")
+        st.subheader("✅ Thêm câu hỏi trắc nghiệm (4 lựa chọn)")
+        
         col1, col2 = st.columns(2)
         with col1:
             mcq_level = st.selectbox("Trình độ", ["beginner", "intermediate", "advanced"], key="mcq_lvl")
         with col2:
-            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="mcq_tags_select")
-            new_tag = st.text_input("Hoặc thêm tag mới", key="mcq_new_tag")
-            if new_tag:
-                new_tags = [t.strip() for t in new_tag.split(',') if t.strip()]
-                for tag in new_tags:
-                    db.add_topic(tag, SUBJECT, user["id"])
-                selected_tags.extend(new_tags)
+            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="mcq_tags")
         
         mcq_question = st.text_area("📌 Câu hỏi", height=100, key="mcq_q")
         
@@ -114,20 +113,15 @@ def show_dashboard(user):
                 st.success("✅ Đã thêm câu hỏi trắc nghiệm!")
                 st.balloons()
     
-    # ========== TAB 2: ĐÚNG/SAI (MỚI) ==========
+    # ========== TAB 2: ĐÚNG/SAI (THÊM MỚI) ==========
     with tab2:
-        st.subheader(f"✓/✗ Thêm câu hỏi Đúng/Sai")
+        st.subheader("✓/✗ Thêm câu hỏi Đúng/Sai")
+        
         col1, col2 = st.columns(2)
         with col1:
             tf_level = st.selectbox("Trình độ", ["beginner", "intermediate", "advanced"], key="tf_lvl")
         with col2:
-            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="tf_tags_select")
-            new_tag = st.text_input("Hoặc thêm tag mới", key="tf_new_tag")
-            if new_tag:
-                new_tags = [t.strip() for t in new_tag.split(',') if t.strip()]
-                for tag in new_tags:
-                    db.add_topic(tag, SUBJECT, user["id"])
-                selected_tags.extend(new_tags)
+            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="tf_tags")
         
         tf_question = st.text_area("📌 Câu hỏi (nhận định)", height=100, key="tf_q")
         tf_answer = st.selectbox("Câu này đúng hay sai?", ["A. Đúng", "B. Sai"], key="tf_ans")
@@ -153,20 +147,15 @@ def show_dashboard(user):
                 st.success("✅ Đã thêm câu hỏi Đúng/Sai!")
                 st.balloons()
     
-    # ========== TAB 3: TỰ LUẬN ==========
+    # ========== TAB 3: TỰ LUẬN (THÊM MỚI) ==========
     with tab3:
-        st.subheader(f"📝 Thêm câu hỏi tự luận")
+        st.subheader("📝 Thêm câu hỏi tự luận")
+        
         col1, col2 = st.columns(2)
         with col1:
             essay_level = st.selectbox("Trình độ", ["beginner", "intermediate", "advanced"], key="es_lvl")
         with col2:
-            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="es_tags_select")
-            new_tag = st.text_input("Hoặc thêm tag mới", key="es_new_tag")
-            if new_tag:
-                new_tags = [t.strip() for t in new_tag.split(',') if t.strip()]
-                for tag in new_tags:
-                    db.add_topic(tag, SUBJECT, user["id"])
-                selected_tags.extend(new_tags)
+            selected_tags = st.multiselect("Chọn tag (chủ đề)", all_tags, key="es_tags")
         
         essay_question = st.text_area("📌 Câu hỏi tự luận", height=150, key="es_q")
         essay_answer = st.text_area("✅ Đáp án tham khảo", height=150, key="es_ans")
@@ -191,60 +180,37 @@ def show_dashboard(user):
                 st.success("✅ Đã thêm câu hỏi tự luận!")
                 st.balloons()
     
-    # ========== TAB 4: XEM TẤT CẢ ==========
+    # ========== TAB 4: ĐỀ THI (TẠO MỚI) ==========
     with tab4:
-        st.subheader("📊 Tất cả bài tập")
-        exercises = db.get_exercises()
-        if exercises:
-            # Bộ lọc theo loại
-            filter_type = st.selectbox("Lọc theo loại", ["Tất cả", "multiple_choice", "true_false", "essay"])
-            filtered = [ex for ex in exercises if filter_type == "Tất cả" or ex["type"] == filter_type]
-            
-            for ex in filtered[:30]:
-                type_icon = "✅" if ex["type"] == "multiple_choice" else ("✓/✗" if ex["type"] == "true_false" else "📝")
-                with st.expander(f"{type_icon} {ex['question'][:80]}..."):
-                    st.markdown(f"**Câu hỏi:** {ex['question']}")
-                    if ex.get("options"):
-                        st.markdown(f"**Lựa chọn:** {', '.join(ex['options'])}")
-                    st.markdown(f"**Đáp án:** `{ex['answer']}`")
-                    st.markdown(f"**Tags:** {', '.join(ex['tags']) if ex['tags'] else 'Chưa có tag'}")
-        else:
-            st.info("Chưa có bài tập nào")
-    
-    # ========== TAB 5: ĐỀ THI ==========
-    with tab5:
-        st.subheader("📝 Quản lý đề thi")
-        tab_create, tab_list = st.tabs(["Tạo đề mới", "Danh sách đề"])
+        st.subheader("📝 Tạo đề thi mới")
         
-        with tab_create:
-            col1, col2 = st.columns(2)
-            with col1:
-                exam_level = st.selectbox("Trình độ", ["beginner", "intermediate", "advanced"], key="ex_lvl")
-                exam_title = st.text_input("Tiêu đề", key="ex_title")
-            with col2:
-                num_questions = st.number_input("Số câu (3-20)", min_value=3, max_value=20, value=5, key="num_q")
-                time_limit = st.number_input("Thời gian (phút)", min_value=5, max_value=180, value=30, key="time_lim")
-            
-            questions = []
-            # Lấy tất cả bài tập để chọn
-            all_exercises = db.get_exercises()
+        col1, col2 = st.columns(2)
+        with col1:
+            exam_level = st.selectbox("Trình độ", ["beginner", "intermediate", "advanced"], key="ex_lvl")
+            exam_title = st.text_input("Tiêu đề", key="ex_title")
+        with col2:
+            num_questions = st.number_input("Số câu (3-20)", min_value=3, max_value=20, value=5, key="num_q")
+            time_limit = st.number_input("Thời gian (phút)", min_value=5, max_value=180, value=30, key="time_lim")
+        
+        all_exercises = db.get_exercises()
+        if all_exercises:
             exercise_options = {f"{ex['type']}: {ex['question'][:60]}...": ex for ex in all_exercises}
             
+            selected_questions = []
             for i in range(num_questions):
                 with st.expander(f"Câu {i+1}"):
                     selected_key = st.selectbox("Chọn câu hỏi", list(exercise_options.keys()), key=f"ex_select_{i}")
                     if selected_key:
-                        q = exercise_options[selected_key]
-                        questions.append(q)
+                        selected_questions.append(exercise_options[selected_key])
             
             if st.button("💾 Lưu đề thi", key="save_exam"):
-                if exam_title and questions:
+                if exam_title and selected_questions:
                     exam_data = {
                         "exam_id": f"EXAM{datetime.now().strftime('%Y%m%d%H%M%S')}",
                         "title": exam_title,
                         "subject": SUBJECT,
                         "level": exam_level,
-                        "questions": questions,
+                        "questions": selected_questions,
                         "time_limit": time_limit,
                         "created_at": datetime.now().isoformat(),
                         "teacher_id": user["id"]
@@ -252,58 +218,147 @@ def show_dashboard(user):
                     db.add_exam(exam_data)
                     st.success(f"✅ Đã tạo đề: {exam_title}")
                     st.balloons()
-        
-        with tab_list:
-            exams = db.get_exams()
-            if exams:
-                for ex in exams:
-                    with st.expander(f"📄 {ex['title']} ({ex['level']}) - {len(ex['questions'])} câu"):
-                        for i, q in enumerate(ex['questions'][:3]):
-                            st.markdown(f"**{i+1}.** {q['question'][:100]}...")
-            else:
-                st.info("Chưa có đề thi nào")
+        else:
+            st.warning("Chưa có bài tập nào! Hãy thêm bài tập trước khi tạo đề thi.")
     
-    # ========== TAB 6: AI HỌC TẬP ==========
-    with tab6:
-        st.subheader("🧠 Dữ liệu huấn luyện AI")
-        training_data = db.get_all_training_data()
-        st.metric("Số câu hỏi mẫu", len(training_data))
+    # ========== TAB 5: XEM BÀI GIẢNG ==========
+    with tab5:
+        st.subheader("📖 Danh sách bài giảng")
         
-        if training_data:
-            st.subheader("Danh sách câu hỏi mẫu")
-            for i, (q, c) in enumerate(training_data[-50:]):
-                st.caption(f"{i+1}. [{c}] {q[:100]}")
+        lessons = db.get_lessons()
+        if lessons:
+            for lesson in lessons:
+                with st.expander(f"📚 [{lesson['level']}] {lesson['title']}", expanded=False):
+                    st.markdown(f"**ID:** `{lesson['lesson_id']}`")
+                    st.markdown(f"**Tags:** {', '.join(lesson['tags']) if lesson['tags'] else 'Chưa có tag'}")
+                    st.markdown("---")
+                    st.markdown("**📖 Lý thuyết:**")
+                    st.markdown(lesson['theory'])
+                    if lesson.get('examples'):
+                        st.markdown("---")
+                        st.markdown("**💡 Ví dụ:**")
+                        for ex in lesson['examples']:
+                            st.markdown(f"- {ex}")
+                    
+                    # Nút xóa
+                    if st.button("🗑️ Xóa bài giảng này", key=f"del_lesson_{lesson['lesson_id']}"):
+                        conn = db.get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM lessons WHERE lesson_id = ?", (lesson['lesson_id'],))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ Đã xóa bài giảng: {lesson['title']}")
+                        st.rerun()
+        else:
+            st.info("Chưa có bài giảng nào")
+    
+    # ========== TAB 6: XEM BÀI TẬP ==========
+    with tab6:
+        st.subheader("📝 Danh sách bài tập")
+        
+        # Bộ lọc
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            filter_type = st.selectbox("Lọc theo loại", ["Tất cả", "multiple_choice", "true_false", "essay"])
+        with col_f2:
+            filter_level = st.selectbox("Lọc theo trình độ", ["Tất cả", "beginner", "intermediate", "advanced"])
+        with col_f3:
+            search = st.text_input("🔍 Tìm kiếm", placeholder="Nhập từ khóa...")
+        
+        exercises = db.get_exercises()
+        
+        # Lọc
+        filtered = []
+        for ex in exercises:
+            if filter_type != "Tất cả" and ex["type"] != filter_type:
+                continue
+            if filter_level != "Tất cả" and ex["level"] != filter_level:
+                continue
+            if search and search.lower() not in ex["question"].lower():
+                continue
+            filtered.append(ex)
+        
+        if filtered:
+            for ex in filtered:
+                type_icon = "✅" if ex["type"] == "multiple_choice" else ("✓/✗" if ex["type"] == "true_false" else "📝")
+                with st.expander(f"{type_icon} [{ex['level']}] {ex['question'][:100]}...", expanded=False):
+                    st.markdown(f"**ID:** `{ex['exercise_id']}`")
+                    st.markdown(f"**Tags:** {', '.join(ex['tags']) if ex['tags'] else 'Chưa có tag'}")
+                    st.markdown("---")
+                    st.markdown(f"**📌 Câu hỏi:** {ex['question']}")
+                    if ex.get('options'):
+                        st.markdown("**Lựa chọn:**")
+                        for opt in ex['options']:
+                            st.markdown(f"  {opt}")
+                    st.markdown(f"**✅ Đáp án:** `{ex['answer']}`")
+                    if ex.get('correct_explanation'):
+                        st.markdown(f"**📖 Giải thích:** {ex['correct_explanation']}")
+                    
+                    # Nút xóa
+                    if st.button("🗑️ Xóa bài tập này", key=f"del_ex_{ex['exercise_id']}"):
+                        conn = db.get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM exercises WHERE exercise_id = ?", (ex['exercise_id'],))
+                        cursor.execute("DELETE FROM student_exercise_history WHERE exercise_id = ?", (ex['exercise_id'],))
+                        cursor.execute("DELETE FROM quiz_history WHERE exercise_id = ?", (ex['exercise_id'],))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ Đã xóa bài tập")
+                        st.rerun()
+        else:
+            st.info("Không có bài tập nào phù hợp")
+    
+    # ========== TAB 7: XEM ĐỀ THI ==========
+    with tab7:
+        st.subheader("📄 Danh sách đề thi")
+        
+        exams = db.get_exams()
+        if exams:
+            for ex in exams:
+                with st.expander(f"📄 [{ex['level']}] {ex['title']} - {len(ex['questions'])} câu - {ex['time_limit']} phút", expanded=False):
+                    st.markdown(f"**ID:** `{ex['exam_id']}`")
+                    st.markdown("---")
+                    for i, q in enumerate(ex['questions']):
+                        st.markdown(f"**Câu {i+1}:** {q['question']}")
+                        st.markdown(f"   *Đáp án: {q['answer']}*")
+                        if q.get('options'):
+                            st.markdown(f"   *Lựa chọn:* {', '.join(q['options'])}")
+                        st.markdown("---")
+                    
+                    # Nút xóa
+                    if st.button("🗑️ Xóa đề thi này", key=f"del_exam_{ex['exam_id']}"):
+                        conn = db.get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM exams WHERE exam_id = ?", (ex['exam_id'],))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ Đã xóa đề thi: {ex['title']}")
+                        st.rerun()
+        else:
+            st.info("Chưa có đề thi nào")
+    
+    # ========== TAB 8: QUẢN LÝ TAG ==========
+    with tab8:
+        st.subheader("🏷️ Quản lý Tag/Chủ đề")
+        
+        # Danh sách tag mặc định
+        st.markdown("### 📋 Tag mặc định")
+        cols = st.columns(4)
+        for i, tag in enumerate(DEFAULT_TAGS):
+            with cols[i % 4]:
+                st.caption(f"• {tag}")
         
         st.divider()
-        st.subheader("Thêm câu hỏi mới")
-        new_question = st.text_input("Câu hỏi mẫu")
-        new_category = st.selectbox("Nhãn", ["definition", "example", "how_to", "exercise", "compare"])
-        
-        if st.button("➕ Thêm"):
-            if new_question:
-                db.add_training_data(new_question, new_category)
-                st.success("✅ Đã thêm! Hãy nhấn 'Huấn luyện lại AI' để cập nhật.")
-                st.rerun()
-        
-        if st.button("🔄 Huấn luyện lại AI", key="retrain_btn"):
-            from ml_classifier import MLQuestionClassifier
-            classifier = MLQuestionClassifier()
-            classifier.train()
-            st.success("✅ Đã huấn luyện AI thành công!")
-    
-    # ========== TAB 7: QUẢN LÝ TAG ==========
-    with tab7:
-        st.subheader("🏷️ Quản lý Tag/Chủ đề")
         
         # Danh sách tag hiện có
         all_tags = db.get_all_topics(SUBJECT)
         st.write(f"**Tổng số tag:** {len(all_tags)}")
         
         if all_tags:
-            st.subheader("📋 Danh sách tag")
-            col1, col2 = st.columns(2)
+            st.subheader("📋 Danh sách tag hiện có")
+            cols = st.columns(4)
             for i, tag in enumerate(all_tags):
-                with col1 if i % 2 == 0 else col2:
+                with cols[i % 4]:
                     st.caption(f"• {tag}")
         
         st.divider()
@@ -317,12 +372,14 @@ def show_dashboard(user):
                 st.success(f"✅ Đã thêm tag: {new_tag_name}")
                 st.rerun()
         
-        # Xóa tag (cẩn thận)
-        st.divider()
-        st.subheader("🗑️ Xóa tag")
-        st.warning("⚠️ Xóa tag sẽ không xóa bài tập, chỉ xóa tag khỏi danh sách quản lý.")
-        tag_to_delete = st.selectbox("Chọn tag cần xóa", ["-- Chọn --"] + all_tags)
-        if tag_to_delete != "-- Chọn --" and st.button("Xóa tag", key="delete_tag_btn"):
-            db.delete_topic(tag_to_delete)
-            st.success(f"✅ Đã xóa tag: {tag_to_delete}")
-            st.rerun()
+        # Xóa tag
+        if all_tags:
+            st.divider()
+            st.subheader("🗑️ Xóa tag")
+            st.warning("⚠️ Xóa tag sẽ không xóa bài tập, chỉ xóa tag khỏi danh sách quản lý.")
+            
+            tag_to_delete = st.selectbox("Chọn tag cần xóa", ["-- Chọn --"] + all_tags, key="delete_tag_select")
+            if tag_to_delete != "-- Chọn --" and st.button("Xóa tag", key="delete_tag_btn"):
+                db.delete_topic(tag_to_delete)
+                st.success(f"✅ Đã xóa tag: {tag_to_delete}")
+                st.rerun()
