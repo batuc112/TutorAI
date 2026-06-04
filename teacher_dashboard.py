@@ -51,7 +51,14 @@ def show_dashboard(user):
         lesson_examples = st.text_area("💡 Ví dụ (mỗi dòng 1 ví dụ)", height=100, key="ls_ex")
         
         if st.button("💾 Lưu bài giảng", key="save_lesson"):
-            if lesson_title and lesson_theory:
+            # Kiểm tra không được bỏ trống
+            if not lesson_title:
+                st.error("❌ Vui lòng nhập tiêu đề bài học!")
+            elif not lesson_theory:
+                st.error("❌ Vui lòng nhập nội dung lý thuyết!")
+            elif not selected_tags:
+                st.error("❌ Vui lòng chọn ít nhất 1 tag (chủ đề) cho bài giảng!")
+            else:
                 examples = [ex.strip() for ex in lesson_examples.split('\n') if ex.strip()]
                 lesson_data = {
                     "lesson_id": f"L{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -61,7 +68,7 @@ def show_dashboard(user):
                     "exercises": [],
                     "subject": SUBJECT,
                     "level": lesson_level,
-                    "tags": json.dumps(selected_tags),
+                    "tags": selected_tags,
                     "teacher_id": user["id"],
                     "created_at": datetime.now().isoformat()
                 }
@@ -94,19 +101,28 @@ def show_dashboard(user):
         explanation = st.text_area("📖 Giải thích (tùy chọn)", height=80, key="mcq_exp")
         
         if st.button("💾 Lưu câu hỏi trắc nghiệm", key="save_mcq"):
-            if mcq_question and opt_a and opt_b and opt_c and opt_d:
+            # Kiểm tra không được bỏ trống
+            if not mcq_question:
+                st.error("❌ Vui lòng nhập câu hỏi!")
+            elif not opt_a or not opt_b or not opt_c or not opt_d:
+                st.error("❌ Vui lòng nhập đầy đủ 4 lựa chọn A, B, C, D!")
+            elif not answer:
+                st.error("❌ Vui lòng chọn đáp án đúng!")
+            elif not selected_tags:
+                st.error("❌ Vui lòng chọn ít nhất 1 tag (chủ đề) cho bài tập!")
+            else:
                 exercise_data = {
                     "exercise_id": f"MCQ{datetime.now().strftime('%Y%m%d%H%M%S')}",
                     "question": mcq_question,
                     "type": "multiple_choice",
-                    "options": [opt_a, opt_b, opt_c, opt_d],
+                    "options": json.dumps([opt_a, opt_b, opt_c, opt_d], ensure_ascii=False),
                     "answer": answer,
                     "subject": SUBJECT,
                     "level": mcq_level,
-                    "tags": json.dumps(selected_tags),
+                    "tags": selected_tags,
                     "teacher_id": user["id"],
                     "auto_generated": 0,
-                    "correct_explanation": explanation,
+                    "correct_explanation": explanation if explanation else "",  # Giải thích có thể bỏ trống
                     "created_at": datetime.now().isoformat()
                 }
                 db.add_exercise(exercise_data)
@@ -128,19 +144,25 @@ def show_dashboard(user):
         tf_explanation = st.text_area("📖 Giải thích (tùy chọn)", height=80, key="tf_exp")
         
         if st.button("💾 Lưu câu hỏi Đúng/Sai", key="save_tf"):
-            if tf_question:
+            if not tf_question:
+                st.error("❌ Vui lòng nhập câu hỏi!")
+            elif not tf_answer:
+                st.error("❌ Vui lòng chọn đáp án Đúng hoặc Sai!")
+            elif not selected_tags:
+                st.error("❌ Vui lòng chọn ít nhất 1 tag (chủ đề) cho bài tập!")
+            else:
                 exercise_data = {
                     "exercise_id": f"TF{datetime.now().strftime('%Y%m%d%H%M%S')}",
                     "question": tf_question,
                     "type": "true_false",
-                    "options": ["A. Đúng", "B. Sai"],
+                    "options": json.dumps(["A. Đúng", "B. Sai"], ensure_ascii=False),
                     "answer": "A" if "A" in tf_answer else "B",
                     "subject": SUBJECT,
                     "level": tf_level,
-                    "tags": json.dumps(selected_tags),
+                    "tags": selected_tags,
                     "teacher_id": user["id"],
                     "auto_generated": 0,
-                    "correct_explanation": tf_explanation,
+                    "correct_explanation": tf_explanation if tf_explanation else "",
                     "created_at": datetime.now().isoformat()
                 }
                 db.add_exercise(exercise_data)
@@ -161,16 +183,22 @@ def show_dashboard(user):
         essay_answer = st.text_area("✅ Đáp án tham khảo", height=150, key="es_ans")
         
         if st.button("💾 Lưu câu hỏi tự luận", key="save_essay"):
-            if essay_question and essay_answer:
+            if not essay_question:
+                st.error("❌ Vui lòng nhập câu hỏi!")
+            elif not essay_answer:
+                st.error("❌ Vui lòng nhập đáp án tham khảo!")
+            elif not selected_tags:
+                st.error("❌ Vui lòng chọn ít nhất 1 tag (chủ đề) cho bài tập!")
+            else:
                 exercise_data = {
                     "exercise_id": f"ESSAY{datetime.now().strftime('%Y%m%d%H%M%S')}",
                     "question": essay_question,
                     "type": "essay",
-                    "options": [],
+                    "options": json.dumps([], ensure_ascii=False),
                     "answer": essay_answer,
                     "subject": SUBJECT,
                     "level": essay_level,
-                    "tags": json.dumps(selected_tags),
+                    "tags": selected_tags,
                     "teacher_id": user["id"],
                     "auto_generated": 0,
                     "correct_explanation": "",
@@ -179,7 +207,6 @@ def show_dashboard(user):
                 db.add_exercise(exercise_data)
                 st.success("✅ Đã thêm câu hỏi tự luận!")
                 st.balloons()
-    
     # ========== TAB 4: ĐỀ THI (TẠO MỚI) ==========
     with tab4:
         st.subheader("📝 Tạo đề thi mới")
@@ -204,7 +231,14 @@ def show_dashboard(user):
                         selected_questions.append(exercise_options[selected_key])
             
             if st.button("💾 Lưu đề thi", key="save_exam"):
-                if exam_title and selected_questions:
+                # Kiểm tra không được bỏ trống
+                if not exam_title:
+                    st.error("❌ Vui lòng nhập tiêu đề đề thi!")
+                elif not selected_questions or len(selected_questions) < 3:
+                    st.error(f"❌ Vui lòng chọn đủ {num_questions} câu hỏi cho đề thi!")
+                elif len(selected_questions) != num_questions:
+                    st.error(f"❌ Vui lòng chọn đúng {num_questions} câu hỏi (đã chọn {len(selected_questions)} câu)!")
+                else:
                     exam_data = {
                         "exam_id": f"EXAM{datetime.now().strftime('%Y%m%d%H%M%S')}",
                         "title": exam_title,

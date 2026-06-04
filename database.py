@@ -1077,9 +1077,26 @@ def get_average_score_last_5(user_id):
 
 # ========== EXERCISES ==========
 def add_exercise(exercise_data):
-    """Thêm bài tập vào database - NHẬN JSON STRING"""
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # Xử lý tags - đảm bảo là JSON string đúng
+    tags = exercise_data.get("tags", [])
+    if isinstance(tags, list):
+        tags_str = json.dumps(tags, ensure_ascii=False)
+    elif isinstance(tags, str):
+        tags_str = tags
+    else:
+        tags_str = "[]"
+    
+    # Xử lý options
+    options = exercise_data.get("options", [])
+    if isinstance(options, list):
+        options_str = json.dumps(options, ensure_ascii=False)
+    elif isinstance(options, str):
+        options_str = options
+    else:
+        options_str = "[]"
     
     cursor.execute('''
     INSERT INTO exercises (exercise_id, question, type, options, answer, subject, level, tags, teacher_id, auto_generated, correct_explanation, created_at)
@@ -1088,11 +1105,11 @@ def add_exercise(exercise_data):
         exercise_data["exercise_id"],
         exercise_data["question"],
         exercise_data["type"],
-        exercise_data["options"],  
+        options_str,
         exercise_data["answer"],
         exercise_data["subject"],
         exercise_data["level"],
-        exercise_data["tags"],      
+        tags_str,
         exercise_data["teacher_id"],
         exercise_data.get("auto_generated", 0),
         exercise_data.get("correct_explanation", ""),
@@ -1122,7 +1139,6 @@ def get_exercises(subject=None, level=None, exercise_type=None):
     
     exercises = []
     for row in rows:
-        
         try:
             options = json.loads(row[4]) if row[4] else []
         except:

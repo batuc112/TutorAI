@@ -77,27 +77,34 @@ class HybridTutor:
         print(f"✅ Đã tạo xong {len(self.training_embeddings)} vector embedding!")
     
     def normalize_question(self, question):
-        """Chuẩn hóa câu hỏi: 'thế nào là X' → 'X là gì'"""
-        q_lower = question.lower()
-        
-        # Các mẫu cần chuẩn hóa
+        q_lower = question.lower().strip()
+
         patterns = [
-            (r'thế nào là\s+(\w+)', r'\1 là gì'),
-            (r'khái niệm\s+(\w+)', r'\1 là gì'),
-            (r'định nghĩa\s+(\w+)', r'\1 là gì'),
-            (r'(\w+) được hiểu như thế nào', r'\1 là gì'),
-            (r'hãy giải thích\s+(\w+)', r'\1 là gì'),
-            (r'cho tôi biết\s+(\w+)', r'\1 là gì'),
+            r"(.+?)\s+là gì",
+            r"thế nào là\s+(.+)",
+            r"khái niệm\s+(.+)",
+            r"định nghĩa\s+(.+)",
+            r"giải thích\s+(.+)",
+            r"hãy giải thích\s+(.+)",
+            r"cho tôi biết\s+(.+)",
+            r"(.+?)\s+được hiểu như thế nào",
+            r"(.+?)\s+nghĩa là gì",
         ]
-        
-        for pattern, replacement in patterns:
+
+        for pattern in patterns:
             match = re.search(pattern, q_lower)
+
             if match:
-                normalized = re.sub(pattern, replacement, q_lower)
+                topic = match.group(1).strip()
+
+                # chuẩn hóa về cùng 1 dạng
+                normalized = f"{topic} là gì"
+
                 print(f"🔄 Chuẩn hóa: '{question}' → '{normalized}'")
+
                 return normalized
-        
-        return question
+
+        return q_lower
     def load_training_data(self):
         """Load dữ liệu huấn luyện và tạo vector embedding"""
         data = db.get_all_training_data()
